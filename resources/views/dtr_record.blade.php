@@ -28,8 +28,6 @@
                 <p class="text-slate-500 text-[15px] flex items-center justify-center gap-2 mt-2 whitespace-nowrap">
                     <i class="far fa-calendar-alt text-blue-500"></i>
                     Today is {{ date('F d, Y') }} 
-                    <span class="text-slate-300 mx-2">|</span>
-                    <span id="liveClock" class="font-mono font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg">00:00:00 AM</span>
                 </p>
             </div>
 
@@ -128,8 +126,7 @@
                             {{ $todayRecord->am_in ? date('h:i A', strtotime($todayRecord->am_in)) : '--:--' }}
                         </td>
                         <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
-                            {{ $todayRecord->am_out ? date('h:i A', strtotime($todayRecord->am_out)) : '--:--' }}
-                        </td>
+                           {{ (!empty($todayRecord->am_out) && !in_array($todayRecord->am_out, ['12:00:00', '00:00:00'])) ? date('h:i A', strtotime($todayRecord->am_out)) : '--:--' }}
                         <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
                             {{ $todayRecord->pm_in ? date('h:i A', strtotime($todayRecord->pm_in)) : '--:--' }}
                         </td>
@@ -137,7 +134,7 @@
                             {{ $todayRecord->pm_out ? date('h:i A', strtotime($todayRecord->pm_out)) : '--:--' }}
                         </td>
                         <td class="px-4 py-2 text-center font-mono text-blue-600 font-bold">
-                            {{ $todayRecord->total_hours ?? '0.00' }}
+                            {{ number_format($todayRecord->calculated_hours, 2) }}
                         </td>
                     </tr>
 
@@ -160,8 +157,8 @@
                         <td class="px-4 py-1 text-center border-x border-slate-50 font-mono text-slate-500">
                             {{ $log->am_in ? date('h:i A', strtotime($log->am_in)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
-                            {{ $log->am_out ? date('h:i A', strtotime($log->am_out)) : '--:--' }}
+                        <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
+                           {{ (!empty($log->am_out) && !in_array($log->am_out, ['12:00:00', '00:00:00'])) ? date('h:i A', strtotime($log->am_out)) : '--:--' }}
                         </td>
                         <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
                             {{ $log->pm_in ? date('h:i A', strtotime($log->pm_in)) : '--:--' }}
@@ -169,8 +166,8 @@
                         <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
                             {{ $log->pm_out ? date('h:i A', strtotime($log->pm_out)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center font-mono text-slate-500">
-                            {{ $log->total_hours ?? '--:--' }}
+                        <td class="px-4 py-2 text-center font-mono text-blue-600 font-bold">
+                            {{ number_format($log->calculated_hours, 2) }}
                         </td>
                     </tr>
                     @endforeach
