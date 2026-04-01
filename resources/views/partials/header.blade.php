@@ -16,6 +16,10 @@
                        class="text-sm font-bold opacity-90 hover:opacity-100 transition flex items-center gap-2">
                         <i class="fas fa-tasks text-xs"></i> DTR Management
                     </a>
+                    <a href="{{ route('dtr.record') }}" 
+                       class="text-sm font-bold opacity-90 hover:opacity-100 transition flex items-center gap-2">
+                        <i class="fas fa-clipboard-list text-xs"></i> Record
+                    </a>
                 </div>
 
                 <form action="{{ route('logout') }}" method="POST" class="inline">

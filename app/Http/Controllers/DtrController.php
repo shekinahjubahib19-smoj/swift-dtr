@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 // 1. Ensure you are using the DtrSetting model, not DtrLog
 use App\Models\DtrSetting; 
 use Illuminate\Support\Facades\Auth;
+use App\Models\DailyTimeRecord;
+use Carbon\Carbon;
 
 class DtrController extends Controller
 {
@@ -46,5 +48,37 @@ class DtrController extends Controller
         session()->forget('dtr_settings');
 
         return redirect()->route('dtr.manage')->with('success', 'Profile configuration locked and saved!');
+    }
+
+    public function clockAction()
+    {
+        $now = Carbon::now();
+        $today = $now->toDateString();
+        $currentTime = $now->toTimeString();
+        $userId = Auth::id();
+
+        // Find or create today's record
+        $record = DailyTimeRecord::firstOrCreate(
+            ['user_id' => $userId, 'log_date' => $today]
+        );
+
+        // Logic to fill the next empty slot
+        if (!$record->am_in) {
+            $record->update(['am_in' => $currentTime]);
+            $msg = "Clocked In for Morning";
+        } elseif (!$record->am_out) {
+            $record->update(['am_out' => $currentTime]);
+            $msg = "Clocked Out for Lunch";
+        } elseif (!$record->pm_in) {
+            $record->update(['pm_in' => $currentTime]);
+            $msg = "Clocked In for Afternoon";
+        } elseif (!$record->pm_out) {
+            $record->update(['pm_out' => $currentTime]);
+            $msg = "Clocked Out for the Day";
+        } else {
+            return back()->with('error', 'All slots for today are already filled.');
+        }
+
+        return back()->with('success', $msg);
     }
 }

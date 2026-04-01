@@ -51,4 +51,8 @@ class User extends Authenticatable
     {
         return $this->hasOne(DtrSetting::class);
     }
+
+    public function dailyRecords() {
+        return $this->hasMany(DailyTimeRecord::class);
+    }
 }
