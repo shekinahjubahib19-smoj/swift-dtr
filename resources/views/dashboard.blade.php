@@ -35,10 +35,9 @@
         $isCompleted = ($todayRecord && $todayRecord->pm_out);
     @endphp
 
-    <div class="container mx-auto mt-10 p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-          <div class="md:col-span-2 bg-white p-8 rounded-xl shadow-md text-center">
+    <div class="mt-1 p-2">
+        <div class="flex items-center justify-center min-h-[80vh] w-full px-4">
+            <div class="w-full max-w-3xl bg-white p-10 rounded-2xl shadow-lg text-center">
             <h2 class="text-2xl font-bold mb-2">Daily Time Record</h2>
             
            <div class="my-4">
@@ -87,7 +86,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
 <script src="{{ asset('js/clock.js') }}"></script>
 </body>
