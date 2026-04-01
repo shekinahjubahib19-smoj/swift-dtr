@@ -34,25 +34,28 @@
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Full Name</label>
                     <input type="text" name="full_name" :disabled="!isEditing"
-                        value="{{ $settings['full_name'] ?? Auth::user()->name }}" 
+                        value="{{ $settings->full_name ?? Auth::user()->name }}" 
                         class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
                 </div>
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Hours to Render</label>
                     <input type="number" name="total_hours" :disabled="!isEditing"
-                        value="{{ $settings['total_hours_to_render'] ?? '720' }}" 
+                        value="{{ $settings->total_hours ?? '720' }}" 
                         class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
                 </div>
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Department</label>
                     <input type="text" name="department" :disabled="!isEditing"
-                        value="{{ $settings['department'] ?? '' }}" placeholder="e.g. IT Department"
+                        value="{{ $settings->department ?? '' }}" 
+                        placeholder="e.g. IT Department"
                         class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
                 </div>
+
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Position</label>
                     <input type="text" name="position" :disabled="!isEditing"
-                        value="{{ $settings['position'] ?? '' }}" placeholder="e.g. IT Intern"
+                        value="{{ $settings->position ?? '' }}" 
+                        placeholder="e.g. IT Intern"
                         class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
                 </div>
             </div>
@@ -64,14 +67,14 @@
                         <div class="w-full">
                             <span class="text-[10px] text-blue-400 font-bold uppercase">Time In</span>
                             <input type="time" name="am_in" :disabled="!isEditing" 
-                                value="{{ $settings['time_in_am'] ?? '08:00' }}" 
-                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white disabled:text-slate-700 disabled:cursor-default">
+                                value="{{ $settings->am_in ?? '07:00' }}" 
+                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white">
                         </div>
                         <div class="w-full">
                             <span class="text-[10px] text-blue-400 font-bold uppercase">Time Out</span>
                             <input type="time" name="am_out" :disabled="!isEditing" 
-                                value="{{ $settings['time_out_am'] ?? '12:00' }}" 
-                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white disabled:text-slate-700 disabled:cursor-default">
+                                value="{{ $settings->am_out ?? '12:00' }}" 
+                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white">
                         </div>
                     </div>
                 </div>
@@ -82,14 +85,14 @@
                         <div class="w-full">
                             <span class="text-[10px] text-blue-400 font-bold uppercase">Time In</span>
                             <input type="time" name="pm_in" :disabled="!isEditing" 
-                                value="{{ $settings['time_in_pm'] ?? '13:00' }}" 
-                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white disabled:text-slate-700 disabled:cursor-default">
+                                value="{{ $settings->pm_in ?? '13:00' }}" 
+                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white">
                         </div>
                         <div class="w-full">
                             <span class="text-[10px] text-blue-400 font-bold uppercase">Time Out</span>
                             <input type="time" name="pm_out" :disabled="!isEditing" 
-                                value="{{ $settings['time_out_pm'] ?? '17:00' }}" 
-                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white disabled:text-slate-700 disabled:cursor-default">
+                                value="{{ $settings->pm_out ?? '17:00' }}" 
+                                class="w-full p-2 rounded-lg border border-blue-200 disabled:bg-white">
                         </div>
                     </div>
                 </div>
