@@ -55,7 +55,7 @@
                 </span>
             </div>
 
-            <h2 class="text-2xl font-bold">Welcome, {{ $user->name }}!</h2>
+            <h2 class="text-2xl font-bold">Welcome, <h2 class="text-2xl font-bold uppercase">{{ $user->name }}!</h2></h2>
   
                     
                     <div class="my-6">
