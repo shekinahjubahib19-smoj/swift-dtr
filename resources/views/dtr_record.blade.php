@@ -106,42 +106,74 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @php
-                        $records = auth()->user()->dailyRecords()->latest()->take(10)->get();
+                        // 1. Get Today's record (creating it if it doesn't exist yet)
+                        $todayRecord = auth()->user()->dailyRecords()->firstOrCreate([
+                            'log_date' => date('Y-m-d')
+                        ]);
+
+                        // 2. Get past records (excluding today)
+                        $pastRecords = auth()->user()->dailyRecords()
+                            ->where('log_date', '!=', date('Y-m-d'))
+                            ->latest('log_date')
+                            ->take(8)
+                            ->get();
                     @endphp
 
-                    @foreach($records as $log)
-                    <tr class="hover:bg-blue-50/50 transition-all group">
-                        <td class="px-4 py-1 text-slate-700 font-semibold group-hover:text-blue-600">
+                    <tr class="bg-blue-50/30 hover:bg-blue-50 transition-all group">
+                        <td class="px-4 py-2 text-blue-700 font-bold">
+                            {{ \Carbon\Carbon::parse($todayRecord->log_date)->format('M d, Y') }}
+                            <span class="ml-2 text-[9px] bg-blue-100 px-2 py-0.5 rounded-full uppercase">Today</span>
+                        </td>
+                        <td class="px-4 py-2 text-center border-x border-slate-50 font-mono text-slate-700 font-bold">
+                            {{ $todayRecord->am_in ? date('h:i A', strtotime($todayRecord->am_in)) : '--:--' }}
+                        </td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
+                            {{ $todayRecord->am_out ? date('h:i A', strtotime($todayRecord->am_out)) : '--:--' }}
+                        </td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
+                            {{ $todayRecord->pm_in ? date('h:i A', strtotime($todayRecord->pm_in)) : '--:--' }}
+                        </td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
+                            {{ $todayRecord->pm_out ? date('h:i A', strtotime($todayRecord->pm_out)) : '--:--' }}
+                        </td>
+                        <td class="px-4 py-2 text-center font-mono text-blue-600 font-bold">
+                            {{ $todayRecord->total_hours ?? '0.00' }}
+                        </td>
+                    </tr>
+
+                    <tr class="opacity-30 bg-slate-50/50">
+                        <td class="px-4 py-2 text-slate-400 font-medium italic">
+                            {{ date('M d, Y', strtotime('+1 day')) }}
+                        </td>
+                        <td class="px-4 py-2 text-center border-x border-slate-50 text-slate-300 font-mono">--:--</td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 text-slate-300 font-mono">--:--</td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 text-slate-300 font-mono">--:--</td>
+                        <td class="px-4 py-2 text-center border-r border-slate-50 text-slate-300 font-mono">--:--</td>
+                        <td class="px-4 py-2 text-center text-slate-300 font-mono">--:--</td>
+                    </tr>
+
+                    @foreach($pastRecords as $log)
+                    <tr class="hover:bg-slate-50 transition-all group">
+                        <td class="px-4 py-1 text-slate-600 font-semibold">
                             {{ \Carbon\Carbon::parse($log->log_date)->format('M d, Y') }}
                         </td>
-                        <td class="px-4 py-1 text-center border-x border-slate-50 font-mono text-slate-600">
+                        <td class="px-4 py-1 text-center border-x border-slate-50 font-mono text-slate-500">
                             {{ $log->am_in ? date('h:i A', strtotime($log->am_in)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-600">
+                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
                             {{ $log->am_out ? date('h:i A', strtotime($log->am_out)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-600">
+                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
                             {{ $log->pm_in ? date('h:i A', strtotime($log->pm_in)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-600">
+                        <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-500">
                             {{ $log->pm_out ? date('h:i A', strtotime($log->pm_out)) : '--:--' }}
                         </td>
-                        <td class="px-4 py-1 text-center font-mono text-slate-600">
+                        <td class="px-4 py-1 text-center font-mono text-slate-500">
                             {{ $log->total_hours ?? '--:--' }}
                         </td>
                     </tr>
                     @endforeach
-
-                    {{-- Fill remaining rows up to 10 for consistency --}}
-                    @for ($i = count($records); $i < 10; $i++)
-                    <tr class="opacity-40">
-                        <td class="px-4 py-1 text-slate-300 text-sm italic">Pending Log...</td>
-                        <td class="px-4 py-1 text-center border-x border-slate-50 text-slate-200 font-mono">--:--</td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 text-slate-200 font-mono">--:--</td>
-                        <td class="px-4 py-1 text-center border-r border-slate-50 text-slate-200 font-mono">--:--</td>
-                        <td class="px-4 py-1 text-center text-slate-200 font-mono">--:--</td>
-                    </tr>
-                    @endfor
                 </tbody>
             </table>
         </div>
