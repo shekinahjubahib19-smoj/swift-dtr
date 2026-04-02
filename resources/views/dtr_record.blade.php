@@ -15,7 +15,6 @@
 
     @php
     $records = auth()->user()->dailyRecords()->latest()->take(10)->get();
-    // Add this line to get the user's internship profile
     $settings = auth()->user()->dtrSetting; 
     @endphp
 
@@ -104,12 +103,10 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @php
-                        // 1. Get Today's record (creating it if it doesn't exist yet)
                         $todayRecord = auth()->user()->dailyRecords()->firstOrCreate([
                             'log_date' => date('Y-m-d')
                         ]);
 
-                        // 2. Get past records (excluding today)
                         $pastRecords = auth()->user()->dailyRecords()
                             ->where('log_date', '!=', date('Y-m-d'))
                             ->latest('log_date')
@@ -127,6 +124,7 @@
                         </td>
                         <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
                            {{ (!empty($todayRecord->am_out) && !in_array($todayRecord->am_out, ['12:00:00', '00:00:00'])) ? date('h:i A', strtotime($todayRecord->am_out)) : '--:--' }}
+                        </td>
                         <td class="px-4 py-2 text-center border-r border-slate-50 font-mono text-slate-700">
                             {{ $todayRecord->pm_in ? date('h:i A', strtotime($todayRecord->pm_in)) : '--:--' }}
                         </td>
@@ -134,7 +132,8 @@
                             {{ $todayRecord->pm_out ? date('h:i A', strtotime($todayRecord->pm_out)) : '--:--' }}
                         </td>
                         <td class="px-4 py-2 text-center font-mono text-blue-600 font-bold">
-                            {{ number_format($todayRecord->calculated_hours, 2) }}
+                            {{-- Updated to total_hours --}}
+                            {{ number_format($todayRecord->total_hours, 2) }}
                         </td>
                     </tr>
 
@@ -167,7 +166,8 @@
                             {{ $log->pm_out ? date('h:i A', strtotime($log->pm_out)) : '--:--' }}
                         </td>
                         <td class="px-4 py-2 text-center font-mono text-blue-600 font-bold">
-                            {{ number_format($log->calculated_hours, 2) }}
+                            {{-- Updated to total_hours --}}
+                            {{ number_format($log->total_hours, 2) }}
                         </td>
                     </tr>
                     @endforeach

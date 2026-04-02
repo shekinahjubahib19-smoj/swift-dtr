@@ -19,6 +19,7 @@ return new class extends Migration
             $table->time('am_out')->nullable();
             $table->time('pm_in')->nullable();
             $table->time('pm_out')->nullable();
+            $table->decimal('total_hours', 8, 2)->default(0);
             $table->timestamps();
         });
     }

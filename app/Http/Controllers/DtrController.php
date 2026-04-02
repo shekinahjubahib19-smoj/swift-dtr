@@ -10,9 +10,6 @@ use Carbon\Carbon;
 
 class DtrController extends Controller
 {
-    /**
-     * Handles the "Save Configuration" from the DTR Management page.
-     */
     public function storeSettings(Request $request)
     {
         $request->validate([
@@ -40,17 +37,13 @@ class DtrController extends Controller
 
         DtrSetting::updateOrCreate(
             ['user_id' => Auth::id()], 
-            $data                      
+            $data                                     
         );
 
         session()->forget('dtr_settings');
-
         return redirect()->route('dtr.manage')->with('success', 'Profile configuration locked and saved!');
     }
 
-    /**
-     * Handles the logic for Clocking In and Out.
-     */
     public function clockAction()
     {
         $now = Carbon::now();
@@ -58,80 +51,84 @@ class DtrController extends Controller
         $currentTime = $now->toTimeString();
         $userId = Auth::id();
 
+        // 1. Strict Gate: 12:00 PM onwards is Afternoon
+        $isAfternoon = $now->hour >= 12;
+
         $settings = DtrSetting::where('user_id', $userId)->first();
-
         if (!$settings) {
-            return back()->with('error', 'Please configure your Internship Profile in Management first.');
+            return back()->with('error', 'Please configure your profile first.');
         }
-
-        // Set official times
-        $officialAmIn  = Carbon::today()->setTimeFromTimeString($settings->am_in);
-        $officialAmOut = Carbon::today()->setTimeFromTimeString($settings->am_out);
-        $officialPmIn  = Carbon::today()->setTimeFromTimeString($settings->pm_in);
-        $officialPmOut = Carbon::today()->setTimeFromTimeString($settings->pm_out);
 
         $record = DailyTimeRecord::firstOrCreate(
             ['user_id' => $userId, 'log_date' => $today]
         );
 
-        if (!$record->am_in && $now->lt($officialPmIn)) {
-            // Logic: If early, log official time. If late, log current time.
-            $logTime = $now->lt($officialAmIn) ? $officialAmIn->toTimeString() : $currentTime;
-            $record->update(['am_in' => $logTime]);
-            $msg = "Morning Time In recorded: " . Carbon::parse($logTime)->format('h:i A');
-
-        } elseif (!$record->am_out) {
-            // Logic: If late, log official time. If early, log current time.
-            $logTime = $now->gt($officialAmOut) ? $officialAmOut->toTimeString() : $currentTime;
-            $record->update(['am_out' => $logTime]);
-            $this->recalculateTotalHours($record); // Update total after morning shift
-            $msg = "Morning Time Out recorded: " . Carbon::parse($logTime)->format('h:i A');
-
-        } elseif (!$record->pm_in) {
-            $logTime = $now->lt($officialPmIn) ? $officialPmIn->toTimeString() : $currentTime;
-            $record->update(['pm_in' => $logTime]);
-            $this->recalculateTotalHours($record); // Ensures AM hours persist in the total column
-            $msg = "Afternoon Time In recorded: " . Carbon::parse($logTime)->format('h:i A');
-
-        } elseif (!$record->pm_out) {
-            $logTime = $now->gt($officialPmOut) ? $officialPmOut->toTimeString() : $currentTime;
-            $record->update(['pm_out' => $logTime]);
-            $this->recalculateTotalHours($record); // Final daily total
-            $msg = "Afternoon Time Out recorded: " . Carbon::parse($logTime)->format('h:i A');
-
-        } else {
-            return back()->with('error', 'All slots for today are already filled.');
+        // --- AFTERNOON LOGIC ---
+        if ($isAfternoon) {
+            if (!$record->pm_in) {
+                $record->update(['pm_in' => $currentTime]);
+                $msg = "Afternoon Time In recorded.";
+            } 
+            elseif (!$record->pm_out) {
+                $record->update(['pm_out' => $currentTime]);
+                $this->recalculateTotalHours($record); 
+                $msg = "Afternoon Time Out recorded. Shift Complete!";
+            } 
+            else {
+                return back()->with('error', 'Afternoon shift already completed.');
+            }
+        } 
+        // --- MORNING LOGIC ---
+        else {
+            if (!$record->am_in) {
+                $record->update(['am_in' => $currentTime]);
+                $msg = "Morning Time In recorded.";
+            } 
+            elseif (!$record->am_out) {
+                $record->update(['am_out' => $currentTime]);
+                $this->recalculateTotalHours($record); 
+                $msg = "Morning Time Out recorded.";
+            } 
+            else {
+                // If they finished morning but it's still before 12PM
+                return back()->with('error', 'Morning shift completed. Afternoon logs start at 12:00 PM.');
+            }
         }
 
         return back()->with('success', $msg);
     }
 
     /**
-     * Calculates total hours rendered for the day (AM block + PM block).
+     * Recalculates the total hours based on AM and PM sessions.
      */
    private function recalculateTotalHours(DailyTimeRecord $record)
 {
     $totalMinutes = 0;
 
-    // 1. Calculate Morning Block (Only if BOTH are present)
-    if (!empty($record->am_in) && !empty($record->am_out)) {
+    // 1. Morning Session: Only calculate if BOTH am_in and am_out exist
+    if ($record->am_in && $record->am_out) {
         $amIn = Carbon::parse($record->am_in);
         $amOut = Carbon::parse($record->am_out);
-        $totalMinutes += max(0, $amOut->diffInMinutes($amIn));
+        
+        // Ensure out is later than in to avoid negative results
+        if ($amOut->gt($amIn)) {
+            $totalMinutes += $amIn->diffInMinutes($amOut);
+        }
     }
 
-    // 2. Calculate Afternoon Block (Only if BOTH are present)
-    if (!empty($record->pm_in) && !empty($record->pm_out)) {
+    // 2. Afternoon Session: Only calculate if BOTH pm_in and pm_out exist
+    if ($record->pm_in && $record->pm_out) {
         $pmIn = Carbon::parse($record->pm_in);
         $pmOut = Carbon::parse($record->pm_out);
-        $totalMinutes += max(0, $pmOut->diffInMinutes($pmIn));
+        
+        // Ensure out is later than in to avoid negative results
+        if ($pmOut->gt($pmIn)) {
+            $totalMinutes += $pmIn->diffInMinutes($pmOut);
+        }
     }
 
-    // 3. Convert minutes to decimal (e.g., 1 min / 60 = 0.0166...)
-    $decimalHours = $totalMinutes / 60;
-
-    // 4. Update using 'number_format' to force 2 decimal places in the database
-    $record->total_hours = $record->calculated_hours; 
+    // 3. Convert to hours and round to 2 decimal places
+    $record->total_hours = round($totalMinutes / 60, 2); 
     $record->save();
 }
 }
