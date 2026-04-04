@@ -35,9 +35,17 @@ class AppServiceProvider extends ServiceProvider
             if (Config::get('database.default') === 'sqlite') {
                 $db = Config::get('database.connections.sqlite.database');
                 if ($db) {
-                    // Resolve relative paths against base_path
-                    $isAbsolute = str_starts_with($db, '/') || preg_match('/^[A-Z]:\\\\/i', $db);
-                    $path = $isAbsolute ? $db : base_path($db);
+                        // If DB value is a simple token like "laravel" (common on some
+                        // deploy platforms), prefer the conventional sqlite path
+                        // database/database.sqlite. Otherwise resolve relative
+                        // paths against base_path.
+                        $isSimpleName = !str_contains($db, '/') && !str_contains($db, "\\") && !str_contains($db, '.');
+                        if ($isSimpleName && $db === 'laravel') {
+                            $path = base_path('database/database.sqlite');
+                        } else {
+                            $isAbsolute = str_starts_with($db, '/') || preg_match('/^[A-Z]:\\\\/i', $db);
+                            $path = $isAbsolute ? $db : base_path($db);
+                        }
                     $dir = dirname($path);
                     if (!is_dir($dir)) {
                         @mkdir($dir, 0755, true);
