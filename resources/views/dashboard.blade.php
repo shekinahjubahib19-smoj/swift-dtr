@@ -57,6 +57,18 @@
                 @if(!$isFinished)
                 <form action="{{ route('dtr.clock') }}" method="POST">
                     @csrf
+                    @php
+                        if ($todayRecord && $todayRecord->pm_in) {
+                            $action = 'pm_out';
+                        } elseif ($todayRecord && $todayRecord->am_in && !$todayRecord->am_out && $now->hour < 12) {
+                            $action = 'am_out';
+                        } elseif ($now->hour >= 12 || ($todayRecord && $todayRecord->am_out)) {
+                            $action = 'pm_in';
+                        } else {
+                            $action = 'am_in';
+                        }
+                    @endphp
+                    <input type="hidden" name="action" value="{{ $action }}">
                     <button type="submit" 
                         class="px-10 py-4 rounded-full font-bold transition duration-300 shadow-lg uppercase bg-green-500 hover:bg-green-600 text-white active:scale-95">
                         

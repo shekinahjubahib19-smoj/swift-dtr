@@ -39,6 +39,8 @@ Route::middleware('auth')->group(function () {
 
     // Handles the "Save Configurations" button
     Route::post('/dtr-setup', [DtrController::class, 'storeSettings'])->name('dtr.setup');
+    // Save monthly totals
+    Route::post('/dtr/save-monthly-total', [DtrController::class, 'saveMonthlyTotal'])->name('dtr.saveMonthlyTotal');
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });

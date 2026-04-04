@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: swift-dtr
+    env: php
+    plan: free
+    region: singapore # Best performance for users in the Philippines
+    buildCommand: composer install --no-dev && npm install && npm run build
+    startCommand: php artisan migrate --force && apachectl -D FOREGROUND
+    envVars:
+      - key: APP_KEY
+        generateValue: true # Generates a fresh key for production
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: DB_CONNECTION
+        value: sqlite
+      - key: DB_DATABASE
+        value: /var/lib/sqlite/database.sqlite # Path on the persistent disk
+      - key: LOG_CHANNEL
+        value: stderr
+    disk:
+      name: dtr-sqlite-storage
+      mountPath: /var/lib/sqlite
+      sizeGB: 1
