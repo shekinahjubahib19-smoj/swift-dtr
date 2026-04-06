@@ -18,31 +18,65 @@
         use App\Models\DailyTimeRecord;
         use App\Models\DtrLog;
 
-        // Use explicit year-month keys so we include the seeder range
-        $months = [
-            '2025-12' => 'Dec',
-            '2026-01' => 'Jan',
-            '2026-02' => 'Feb',
-            '2026-03' => 'Mar',
-            '2026-04' => 'Apr',
-        ];
-        // Scope totals to the authenticated user. If not logged in, prefer
-        // the seeded user id 2 as a fallback for backwards compatibility.
-        $userId = auth()->id() ?? 2;
+        // Dynamically build months from the user's first rendered-hours month
+        // to the current month. This uses DailyTimeRecord (by user_id) and
+        // DtrLog (by intern_profiles -> intern_id) and picks the earliest
+        // date where total hours > 0. If none found, start at current month.
+        $authUser = auth()->user();
+        $userId = $authUser?->id ?? null;
         $totalsByMonth = [];
         $totalRendered = 0;
 
         $breakdown = [];
         // try to find an intern_profiles row that matches the current user
-        $internProfile = \Illuminate\Support\Facades\DB::table('intern_profiles')
-            ->where('name', auth()->user()?->name ?? '')
-            ->first();
+        $internProfile = null;
+        if ($authUser) {
+            $internProfile = \Illuminate\Support\Facades\DB::table('intern_profiles')
+                ->where('name', $authUser->name)
+                ->orWhere('name', $authUser->email)
+                ->first();
+        }
         $internId = $internProfile?->id ?? null;
-        // if no intern profile found, but DtrLog exists, default to the first
-        // intern_id present in DtrLog so seeded history is visible for testing
-        if (!$internId) {
-            $firstLog = DtrLog::first();
-            $internId = $firstLog?->intern_id ?? null;
+
+        // find earliest rendered date from DailyTimeRecord or DtrLog
+        $earliestDaily = null;
+        if ($userId) {
+            $earliestDaily = DailyTimeRecord::where('user_id', $userId)
+                ->where('total_hours', '>', 0)
+                ->orderBy('log_date', 'asc')
+                ->value('log_date');
+        }
+
+        $earliestDtr = null;
+        if ($internId) {
+            $earliestDtr = DtrLog::where('intern_id', $internId)
+                ->where('daily_total_hours', '>', 0)
+                ->orderBy('log_date', 'asc')
+                ->value('log_date');
+        }
+
+        $firstDate = null;
+        if ($earliestDaily && $earliestDtr) {
+            $firstDate = ($earliestDaily < $earliestDtr) ? $earliestDaily : $earliestDtr;
+        } elseif ($earliestDaily) {
+            $firstDate = $earliestDaily;
+        } elseif ($earliestDtr) {
+            $firstDate = $earliestDtr;
+        }
+
+        if (!$firstDate) {
+            // no rendered hours yet — start at current month
+            $start = \Carbon\Carbon::now()->startOfMonth();
+        } else {
+            $start = \Carbon\Carbon::parse($firstDate)->startOfMonth();
+        }
+
+        $end = \Carbon\Carbon::now()->startOfMonth();
+        $months = [];
+        $iter = $start->copy();
+        while ($iter->lte($end)) {
+            $months[$iter->format('Y-m')] = $iter->format('M');
+            $iter->addMonth();
         }
         foreach ($months as $num => $label) {
             // $num is now a 'YYYY-MM' key
@@ -63,6 +97,9 @@
             // DTR history (DtrLog) — prefer this if present so dashboard reflects
             // seeded DtrHistory data. We match by log_date month/year.
             $sumDtr = 0;
+            // Only use DtrLog if we have an intern_profiles match for the
+            // currently authenticated user; otherwise ignore DtrLog rows to
+            // avoid showing other users' history.
             if ($internId) {
                 $sumDtr = DtrLog::whereYear('log_date', $y)
                     ->whereMonth('log_date', (int) $m)
@@ -91,7 +128,8 @@
         $thisMonthLabel = date('M');
         $thisMonthTotal = $totalsByMonth[$thisMonthLabel] ?? 0;
 
-        $setting = DtrSetting::first();
+        // Use the logged-in user's DTR settings when available.
+        $setting = $userId ? DtrSetting::where('user_id', $userId)->first() : null;
         $targetHours = $setting ? (float) $setting->total_hours : 160; // fallback
         $remaining = $targetHours - $totalRendered;
         if ($remaining < 0) { $remaining = 0; }

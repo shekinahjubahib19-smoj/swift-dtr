@@ -21,11 +21,16 @@
         $user = auth()->user();
         $settings = $user->dtrSetting;
         $todayRecord = $user->dailyRecords()->where('log_date', $now->toDateString())->first();
-        
+
         // Status Check Logic
         $hasStarted = ($todayRecord && ($todayRecord->am_in || $todayRecord->pm_in));
         // Check if the shift is fully completed for the day
         $isFinished = ($todayRecord && $todayRecord->pm_out);
+
+        // Total rendered hours for this user (sum daily_time_records)
+        $renderedHours = (float) \App\Models\DailyTimeRecord::where('user_id', $user->id)->sum('total_hours');
+        $targetHours = $settings->total_hours ?? 720;
+        $isCompleted = $renderedHours >= $targetHours;
     @endphp
 
     <div class="mt-1 p-2">
@@ -39,23 +44,32 @@
                     </span>
                 </div>
 
-                <h2 class="text-2xl font-bold uppercase text-slate-700">Welcome, {{ $user->name }}!</h2>
-                
-                <div class="my-6">
-                    <p class="text-slate-600">
-                        Current Status: 
-                        @if(!$hasStarted)
-                            <span class="text-red-500 font-bold">Not Timed In Today</span>
-                        @elseif($isFinished)
-                            <span class="text-blue-600 font-bold">Shift Completed</span>
-                        @else
-                            <span class="text-green-500 font-bold">Active Session</span>
-                        @endif
-                    </p>
-                </div>
+                @if($isCompleted)
+                    <h2 class="text-2xl font-bold uppercase text-slate-700">Congratulation {{ strtoupper($user->name) }}! <span aria-hidden="true" class="ml-2 inline-block text-2xl animate-bounce">🎉</span></h2>
+                    <div class="my-6">
+                        <p class="text-green-600 font-bold">OJT Completed!</p>
+                        <p class="text-slate-600 mt-2">Total rendered: <span class="font-bold">{{ number_format($renderedHours,2) }}</span> / <span class="font-bold">{{ number_format($targetHours,2) }}</span> hrs</p>
+                    </div>
+                @else
+                    <h2 class="text-2xl font-bold uppercase text-slate-700">Welcome, {{ $user->name }}!</h2>
+                    
+                    <div class="my-6">
+                        <p class="text-slate-600">
+                            Current Status: 
+                            @if(!$hasStarted)
+                                <span class="text-red-500 font-bold">Not Timed In Today</span>
+                            @elseif($isFinished)
+                                <span class="text-blue-600 font-bold">Shift Completed</span>
+                            @else
+                                <span class="text-green-500 font-bold">Active Session</span>
+                            @endif
+                        </p>
+                    </div>
+                @endif
 
-                @if(!$isFinished)
-                <form action="{{ route('dtr.clock') }}" method="POST">
+                @if(!$isCompleted)
+                    @if(!$isFinished)
+                        <form action="{{ route('dtr.clock') }}" method="POST">
                     @csrf
                     @php
                         if ($todayRecord && $todayRecord->pm_in) {
@@ -91,13 +105,15 @@
                             <i class="fas fa-sun mr-2"></i> Morning In
                         @endif
 
-                    </button>
-                </form>
+                        </form>
+                    @else
+                        <div class="text-blue-700 p-4 rounded-xl border border-blue-100 inline-block">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            Shift completed. See you tomorrow!
+                        </div>
+                    @endif
                 @else
-                    <div class="text-blue-700 p-4 rounded-xl border border-blue-100 inline-block">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        Shift completed. See you tomorrow!
-                    </div>
+                    {{-- OJT completed: no action buttons shown --}}
                 @endif
             </div>
         </div>
