@@ -21,5 +21,8 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        // Seed DTR history (fake intern logs for Feb-Apr)
+        $this->call(DtrHistorySeeder::class);
     }
 }

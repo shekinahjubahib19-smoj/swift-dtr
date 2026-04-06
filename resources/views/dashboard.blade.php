@@ -12,27 +12,153 @@
 
     @include('partials.header')
 
-    <div class="container mx-auto py-12 px-4">
-        <div class="max-w-4xl mx-auto bg-white p-8 rounded-2xl shadow border border-slate-200">
-            <h1 class="text-2xl font-bold text-slate-800 mb-4">Dashboard</h1>
-            <p class="text-slate-600">This is the Dashboard view. Add widgets or summaries here.</p>
+    @php
+        use App\Models\MonthlyTotal;
+        use App\Models\DtrSetting;
+        use App\Models\DailyTimeRecord;
+        use App\Models\DtrLog;
 
-            <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="p-4 bg-blue-50 rounded-lg">
-                    <div class="text-sm text-slate-500">Active Users</div>
-                    <div class="text-xl font-bold text-slate-800">—</div>
+        // Use explicit year-month keys so we include the seeder range
+        $months = [
+            '2025-12' => 'Dec',
+            '2026-01' => 'Jan',
+            '2026-02' => 'Feb',
+            '2026-03' => 'Mar',
+            '2026-04' => 'Apr',
+        ];
+        // Scope totals to the authenticated user. If not logged in, prefer
+        // the seeded user id 2 as a fallback for backwards compatibility.
+        $userId = auth()->id() ?? 2;
+        $totalsByMonth = [];
+        $totalRendered = 0;
+
+        $breakdown = [];
+        // try to find an intern_profiles row that matches the current user
+        $internProfile = \Illuminate\Support\Facades\DB::table('intern_profiles')
+            ->where('name', auth()->user()?->name ?? '')
+            ->first();
+        $internId = $internProfile?->id ?? null;
+        // if no intern profile found, but DtrLog exists, default to the first
+        // intern_id present in DtrLog so seeded history is visible for testing
+        if (!$internId) {
+            $firstLog = DtrLog::first();
+            $internId = $firstLog?->intern_id ?? null;
+        }
+        foreach ($months as $num => $label) {
+            // $num is now a 'YYYY-MM' key
+            list($y, $m) = explode('-', $num);
+
+            // Sum from daily_time_records (if present)
+            $sum1 = DailyTimeRecord::where('user_id', $userId)
+                ->whereYear('log_date', $y)
+                ->whereMonth('log_date', (int) $m)
+                ->sum('total_hours');
+
+            // Monthly totals (if present)
+            $ym = $y . '-' . $m;
+            $sum3 = MonthlyTotal::where('user_id', $userId)
+                ->where('year_month', $ym)
+                ->sum('total_hours');
+
+            // DTR history (DtrLog) — prefer this if present so dashboard reflects
+            // seeded DtrHistory data. We match by log_date month/year.
+            $sumDtr = 0;
+            if ($internId) {
+                $sumDtr = DtrLog::whereYear('log_date', $y)
+                    ->whereMonth('log_date', (int) $m)
+                    ->where('intern_id', $internId)
+                    ->sum('daily_total_hours');
+            }
+
+            // If DtrLog has values, use it as authoritative to avoid double-counting
+            if ((float)$sumDtr > 0) {
+                $totalForMonth = (float) $sumDtr;
+            } else {
+                $totalForMonth = (float) $sum1 + (float) $sum3;
+            }
+
+            $totalsByMonth[$label] = $totalForMonth;
+            $breakdown[$label] = [
+                'daily_time_records' => (float) $sum1,
+                'monthly_totals' => (float) $sum3,
+                'dtr_logs' => (float) $sumDtr,
+                'total' => $totalForMonth,
+            ];
+            $totalRendered += $totalForMonth;
+        }
+
+        // Current month total (if within our months range)
+        $thisMonthLabel = date('M');
+        $thisMonthTotal = $totalsByMonth[$thisMonthLabel] ?? 0;
+
+        $setting = DtrSetting::first();
+        $targetHours = $setting ? (float) $setting->total_hours : 160; // fallback
+        $remaining = $targetHours - $totalRendered;
+        if ($remaining < 0) { $remaining = 0; }
+    @endphp
+
+    <div class="container mx-auto px-4 py-6">
+        <h1 class="text-2xl font-bold text-slate-800 mb-2">Dashboard</h1>
+
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-4 min-h-[calc(80vh-64px)]">
+            <!-- Left top -->
+            <div name="div1" class="bg-white py-2 px-6 rounded shadow md:row-span-2 h-full flex flex-col">
+                <div class="flex-1">
+                    <div class="text-lg font-semibold text-slate-800 mt-2">Monthly Hours Rendered</div>
+
+                    <div class="mt-4 h-90">
+                        <canvas id="monthlyBar" aria-label="Monthly hours bar chart" 
+                            data-labels='@json(array_keys($totalsByMonth))' 
+                            data-values='@json(array_values($totalsByMonth))' class="w-full h-full"></canvas>
+                    </div>
+
                 </div>
-                <div class="p-4 bg-emerald-50 rounded-lg">
-                    <div class="text-sm text-slate-500">This Month Hours</div>
-                    <div class="text-xl font-bold text-slate-800">—</div>
-                </div>
-                <div class="p-4 bg-yellow-50 rounded-lg">
-                    <div class="text-sm text-slate-500">Pending Approvals</div>
-                    <div class="text-xl font-bold text-slate-800">—</div>
+            </div>
+
+           
+
+            <!-- Right column (spans both rows on md+) -->
+            <div name="div2" class="bg-white py-2 px-6 rounded shadow md:row-span-2 h-full flex flex-col">
+                <div class="flex-1">
+                    <div class="text-lg font-semibold text-slate-800 mt-2">Hours Rendered</div>
+
+                    <div class="mt-12 md:flex md:items-center md:gap-6">
+                        <div class="md:flex-1">
+                            <canvas id="hoursPie" aria-label="Hours pie chart" data-rendered="{{ $totalRendered }}" data-remaining="{{ $remaining }}"></canvas>
+                        </div>
+
+                        <div class="mt-4 md:mt-0 md:w-48">
+                            <div class="font-semibold text-slate-700">Legend</div>
+                            <div class="mt-2">
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-3 h-3 bg-blue-500 inline-block rounded"></span>
+                                        <div class="text-sm text-slate-600">Rendered</div>
+                                    </div>
+                                    <div class="text-sm font-medium text-slate-800">{{ number_format($totalRendered, 2) }}</div>
+                                </div>
+
+                                <div class="flex items-center justify-between py-2">
+                                    <div class="flex items-center gap-3">
+                                        <span class="w-3 h-3 bg-amber-400 inline-block rounded"></span>
+                                        <div class="text-sm text-slate-600">Remaining</div>
+                                    </div>
+                                    <div class="text-sm font-medium text-slate-800">{{ number_format($remaining, 2) }}</div>
+                                </div>
+
+                                <div class="border-t border-slate-200 mt-3 pt-3 text-sm text-slate-600">
+                                    Target: <span class="font-medium text-slate-800">{{ number_format($targetHours, 2) }}</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ asset('js/dashboard.js') }}" defer></script>
 </body>
 </html>

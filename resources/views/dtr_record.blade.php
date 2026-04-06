@@ -150,7 +150,7 @@
                                @if($isFuture)
                                    --:--
                                @else
-                                   {{ $record && !empty($record->am_out) && !in_array($record->am_out, ['12:00:00', '00:00:00']) ? date('h:i A', strtotime($record->am_out)) : '--:--' }}
+                                   {{ $record && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00']) ? date('h:i A', strtotime($record->am_out)) : '--:--' }}
                                @endif
                             </td>
 
@@ -178,7 +178,7 @@
                                         $totalHours = 0.0;
                                         if ($record) {
                                             // AM session
-                                            if (!empty($record->am_in) && !empty($record->am_out) && !in_array($record->am_out, ['12:00:00','00:00:00'])) {
+                                            if (!empty($record->am_in) && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00'])) {
                                                 $amIn = strtotime($record->am_in);
                                                 $amOut = strtotime($record->am_out);
                                                 if ($amOut > $amIn) {
@@ -187,7 +187,7 @@
                                             }
 
                                             // PM session
-                                            if (!empty($record->pm_in) && !empty($record->pm_out) && !in_array($record->pm_out, ['12:00:00','00:00:00'])) {
+                                            if (!empty($record->pm_in) && !empty($record->pm_out) && !in_array($record->pm_out, ['00:00:00'])) {
                                                 $pmIn = strtotime($record->pm_in);
                                                 $pmOut = strtotime($record->pm_out);
                                                 if ($pmOut > $pmIn) {

@@ -8,6 +8,14 @@ class DtrLog extends Model
 {
     // This array allows these fields to be saved into the database
     protected $fillable = [
+        // Fields matching the migration and seeders
+        'intern_id',
+        'log_date',
+        'am_in',
+        'am_out',
+        'pm_in',
+        'pm_out',
+        'daily_total_hours',
         'user_id',
         'full_name',
         'total_hours_to_render',

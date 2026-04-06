@@ -52,6 +52,14 @@ class DtrController extends Controller
         $currentTime = $now->toTimeString();
         $userId = Auth::id();
 
+        // Log incoming request and basic state for debugging why AM Out isn't recorded
+        $incomingAction = $request->input('action', null);
+        \Log::info('clockAction.called', [
+            'user_id' => $userId,
+            'incoming_action' => $incomingAction,
+            'now' => $now->toDateTimeString(),
+        ]);
+
         // 1. Strict Gate: 12:00 PM onwards is Afternoon
         $isAfternoon = $now->hour >= 12;
 
@@ -78,6 +86,7 @@ class DtrController extends Controller
 
                 case 'am_out':
                     if ($record->am_in && !$record->am_out) {
+                        \Log::info('clockAction.am_out_attempt', ['user_id'=>$userId,'record'=>$record->toArray(),'time'=>$currentTime]);
                         $record->update(['am_out' => $currentTime]);
                         $this->recalculateTotalHours($record);
                         $msg = "Morning Time Out recorded.";
@@ -118,6 +127,7 @@ class DtrController extends Controller
                 $threshold = $noon->copy()->addMinutes(15);
                 if ($pmIn->betweenIncluded($noon, $threshold)) {
                     // Move pm_in => am_out
+                    \Log::info('clockAction.auto_move_pm_to_am', ['user_id'=>$userId,'pm_in'=>$record->pm_in]);
                     $record->am_out = $record->pm_in;
                     $record->pm_in = null;
                     $record->save();
@@ -135,6 +145,7 @@ class DtrController extends Controller
         // where the page showed "Morning Out" when rendered but the server
         // time is already >= 12 and would otherwise record PM In.
         if ($record->am_in && !$record->am_out) {
+            \Log::info('clockAction.auto_close_am', ['user_id'=>$userId,'current_time'=>$currentTime]);
             $record->update(['am_out' => $currentTime]);
             $this->recalculateTotalHours($record);
             $msg = "Morning Time Out recorded.";
