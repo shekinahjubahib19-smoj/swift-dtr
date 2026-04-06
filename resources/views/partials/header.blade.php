@@ -7,17 +7,20 @@
         
         <div class="flex items-center gap-8">
             @auth
-                {{-- Load your custom JS via Vite --}}
-                @vite([
-                    'resources/js/clock.js', 
-                    'resources/js/dtr-export.js', 
-                    'resources/js/dtr-save-month.js'
-                ])
+                {{-- Load custom JS from public/js for local/dev (avoid Vite manifest error) --}}
+                <script src="{{ asset('js/clock.js') }}"></script>
+                <script src="{{ asset('js/dtr-export.js') }}"></script>
+                <script src="{{ asset('js/dtr-save-month.js') }}"></script>
 
                 <div class="hidden md:flex items-center gap-6 border-r border-blue-500 pr-6">
-                    <a href="{{ route('dashboard') }}" 
+                    <a href="{{ route('dashboard') }}"
                        class="text-sm font-bold opacity-90 hover:opacity-100 transition flex items-center gap-2">
-                        <i class="fas fa-th-large text-xs"></i> Dashboard
+                        <i class="fas fa-chart-line text-xs"></i> Dashboard
+                    </a>
+
+                    <a href="{{ route('punch.time') }}" 
+                       class="text-sm font-bold opacity-90 hover:opacity-100 transition flex items-center gap-2">
+                        <i class="fas fa-th-large text-xs"></i> Punch Time
                     </a>
                     <a href="{{ route('dtr.manage') }}" 
                        class="text-sm font-bold opacity-90 hover:opacity-100 transition flex items-center gap-2">

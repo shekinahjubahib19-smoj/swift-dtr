@@ -60,7 +60,7 @@
                             </span>
                         </div>
 
-                        <div class="flex items-center">
+                        <div class="flex items-center border-b border-slate-50 pb-1">
                             <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 w-24">Target Hours</span>
                             <div class="flex items-center gap-2 ml-0">
                                 <span class="text-sm font-bold text-left uppercase text-slate-600">

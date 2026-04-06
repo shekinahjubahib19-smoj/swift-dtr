@@ -21,9 +21,16 @@ Route::middleware('guest')->group(function () {
 // --- Protected Routes (Must be Logged In) ---
 Route::middleware('auth')->group(function () {
     
+    // Keep the route name `dashboard` but change URL path to `/punchTime`
+    // Dashboard page (app landing)
     Route::get('/dashboard', function () {
         return view('dashboard');
     })->name('dashboard');
+
+    // Punch Time page (time clock)
+    Route::get('/punchTime', function () {
+        return view('punchTime');
+    })->name('punch.time');
 
     // 1. DTR Record View
     Route::get('/dtr-record', function () {

@@ -8,9 +8,6 @@ export default defineConfig({
             input: [
                 "resources/css/app.css",
                 "resources/js/app.js",
-                "resources/js/clock.js",
-                "resources/js/dtr-export.js",
-                "resources/js/dtr-save-month.js",
             ],
             refresh: true,
         }),
