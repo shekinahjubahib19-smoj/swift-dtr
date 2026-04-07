@@ -49,5 +49,8 @@ Route::middleware('auth')->group(function () {
     // Save monthly totals
     Route::post('/dtr/save-monthly-total', [DtrController::class, 'saveMonthlyTotal'])->name('dtr.saveMonthlyTotal');
 
+    // DTR schedule preview
+    Route::get('/dtr-schedule', [DtrController::class, 'schedule'])->name('dtr.schedule');
+
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });

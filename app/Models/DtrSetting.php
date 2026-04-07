@@ -15,6 +15,7 @@ class DtrSetting extends Model
         'company', 
         'department', 
         'position', 
+        'starting_date',
         'am_in', 
         'am_out', 
         'pm_in', 

@@ -18,6 +18,7 @@ class DtrController extends Controller
             'total_hours' => 'required|integer|min:1',
             'department'  => 'required|string|max:255',
             'position'    => 'required|string|max:255',
+            'starting_date' => 'required|date',
             'am_in'       => 'required',
             'am_out'      => 'required',
             'pm_in'       => 'required',
@@ -29,6 +30,7 @@ class DtrController extends Controller
             'total_hours' => $request->total_hours, 
             'department'  => $request->department,
             'position'    => $request->position,
+            'starting_date' => Carbon::parse($request->starting_date)->toDateString(),
             'company'     => 'M Lhuillier', 
             'am_in'       => $request->am_in,  
             'am_out'      => $request->am_out, 
@@ -254,5 +256,65 @@ class DtrController extends Controller
         );
 
         return response()->json(['status' => 'ok', 'year_month' => $yearMonth, 'total_hours' => $totalHours]);
+    }
+
+    /**
+     * Build a projected DTR schedule based on user's starting_date and target hours.
+     * Assumptions:
+     * - Default 8 hours/day
+     * - Weekends (Sat/Sun) are treated as days off
+     * - Adds 30-day extension window to the estimated end date
+     */
+    public function schedule(Request $request)
+    {
+        $userId = Auth::id();
+        $setting = DtrSetting::where('user_id', $userId)->first();
+        if (!$setting || !$setting->starting_date) {
+            return redirect()->route('dtr.manage')->with('error', 'Please set your Starting Date in DTR Management first.');
+        }
+
+        $start = Carbon::parse($setting->starting_date)->startOfDay();
+        $targetHours = (int) ($setting->total_hours ?? 720);
+        $hoursPerDay = (int) $request->input('hours_per_day', 8);
+        // Default: include weekends (count calendar days). Set include_weekends=false to skip weekends.
+        $includeWeekends = filter_var($request->input('include_weekends', true), FILTER_VALIDATE_BOOLEAN);
+
+        $schedule = [];
+        $totalDays = (int) ceil($targetHours / max(1, $hoursPerDay));
+        $cursor = $start->copy();
+        $daysAdded = 0;
+
+        while ($daysAdded < $totalDays) {
+            if (!$includeWeekends && $cursor->isWeekend()) {
+                $cursor->addDay();
+                continue;
+            }
+
+            // Last day may have fewer hours
+            $hoursForDay = ($daysAdded == $totalDays - 1) ? ($targetHours - ($hoursPerDay * ($totalDays - 1))) : $hoursPerDay;
+            $schedule[] = [
+                'date' => $cursor->toDateString(),
+                'hours' => $hoursForDay,
+            ];
+
+            $daysAdded++;
+            $cursor->addDay();
+        }
+
+        $lastDate = end($schedule)['date'] ?? $start->toDateString();
+        $endDate = Carbon::parse($lastDate);
+        $endWithExtension = $endDate->copy()->addDays(30);
+
+        // Group schedule by YYYY-MM -> month label
+        $scheduleByMonth = [];
+        foreach ($schedule as $row) {
+            $mkey = Carbon::parse($row['date'])->format('Y-m');
+            $label = Carbon::parse($row['date'])->format('F Y');
+            $scheduleByMonth[$label][] = $row;
+        }
+
+        return view('dtr_schedule', compact(
+            'scheduleByMonth', 'start', 'targetHours', 'hoursPerDay', 'endDate', 'endWithExtension'
+        ));
     }
 }

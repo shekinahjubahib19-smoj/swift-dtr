@@ -96,127 +96,171 @@
 
         </div>
 
-        <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-            <table class="w-full border-collapse">
-                <thead>
-                    <tr class="bg-slate-800 text-white">
-                        <th class="px-2 py-1 text-left text-xs font-bold uppercase tracking-wider w-36 max-w-full whitespace-nowrap">Log Date</th>
-                        <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-x border-slate-700">AM In</th>
-                        <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">AM Out</th>
-                        <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">PM In</th>
-                        <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">PM Out</th>
-                        <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider">Total Hours</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @php
-                        $today = date('Y-m-d');
+        @php
+            // Ensure today's record exists
+            $today = date('Y-m-d');
+            auth()->user()->dailyRecords()->firstOrCreate(['log_date' => $today]);
 
-                        // Make sure today's record exists
-                        auth()->user()->dailyRecords()->firstOrCreate(['log_date' => $today]);
+            // Determine schedule end based on starting_date and target hours
+            $hoursPerDay = 8; // default
+            $targetHours = isset($settings->total_hours) ? (int)$settings->total_hours : 720;
 
-                        // Build a date range for the current month
-                        $start = new DateTime(date('Y-m-01'));
-                        $end = new DateTime(date('Y-m-t'));
-                        $end->modify('+1 day'); // DatePeriod end is exclusive
-                        $period = new DatePeriod($start, new DateInterval('P1D'), $end);
-                    @endphp
+            if (isset($settings->starting_date) && $settings->starting_date) {
+                $cursor = \Carbon\Carbon::parse($settings->starting_date)->startOfDay()->copy();
+            } else {
+                $cursor = \Carbon\Carbon::now()->startOfMonth()->startOfDay();
+            }
 
-                    @foreach($period as $dt)
-                        @php
-                            $d = $dt->format('Y-m-d');
-                            $record = auth()->user()->dailyRecords()->where('log_date', $d)->first();
-                            $isToday = ($d === $today);
-                            $isFuture = ($d > $today);
-                        @endphp
+            // Estimate using calendar days by default (count weekends). To skip weekends set a flag elsewhere.
+            $totalDays = (int) ceil($targetHours / max(1, $hoursPerDay));
+            $daysAdded = 0;
+            while ($daysAdded < $totalDays) {
+                // calendar days count — if you want to skip weekends, add a condition here
+                $daysAdded++;
+                $cursor->addDay();
+            }
 
-                        <tr class="{{ $isToday ? 'bg-blue-50/30 hover:bg-blue-50' : 'hover:bg-slate-50' }} transition-all group">
-                            <td class="px-2 py-1 {{ $isToday ? 'text-blue-700 font-mono' : 'text-slate-600 font-mono' }} whitespace-nowrap w-36">
-                                {{ \Carbon\Carbon::parse($d)->format('M d, Y') }}
-                                @if($isToday)
-                                    <span class="ml-2 text-[9px] bg-blue-100 px-2 py-0.5 rounded-full uppercase">Today</span>
-                                @endif
-                            </td>
+            // cursor now points to the day after last scheduled day
+            $lastWorking = $cursor->copy()->subDay();
+            // Add 30-day extension and one extra month for safety as requested
+            $endDate = $lastWorking->copy();
+            $endWithExtension = $endDate->copy()->addDays(30)->addMonth();
 
-                            <td class="px-4 py-1 text-center border-x border-slate-50 font-mono {{ $isToday ? 'text-slate-700 font-bold' : 'text-slate-500' }}">
-                                @if($isFuture)
-                                    --:--
-                                @else
-                                    {{ $record && $record->am_in ? date('h:i A', strtotime($record->am_in)) : '--:--' }}
-                                @endif
-                            </td>
+            // Build month range from starting month to endWithExtension month
+            $startMonth = isset($settings->starting_date) && $settings->starting_date ? \Carbon\Carbon::parse($settings->starting_date)->startOfMonth() : \Carbon\Carbon::now()->startOfMonth();
+            $endMonth = $endWithExtension->copy()->startOfMonth();
 
-                            <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-700">
-                               @if($isFuture)
-                                   --:--
-                               @else
-                                   {{ $record && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00']) ? date('h:i A', strtotime($record->am_out)) : '--:--' }}
-                               @endif
-                            </td>
+            $months = [];
+            $iter = $startMonth->copy();
+            while ($iter->lte($endMonth)) {
+                $months[] = $iter->copy();
+                $iter->addMonth();
+            }
+        @endphp
 
-                            <td class="px-4 py-1 text-center border-r border-slate-50 font-mono {{ $isToday ? 'text-slate-700' : 'text-slate-500' }}">
-                                @if($isFuture)
-                                    --:--
-                                @else
-                                    {{ $record && $record->pm_in ? date('h:i A', strtotime($record->pm_in)) : '--:--' }}
-                                @endif
-                            </td>
+        @foreach($months as $monthStart)
+            @php
+                $monthLabel = $monthStart->format('F Y');
+                $monthBegin = $monthStart->copy();
+                $monthEnd = $monthStart->copy()->endOfMonth();
+                $periodStart = new DateTime($monthBegin->toDateString());
+                $periodEnd = new DateTime($monthEnd->toDateString());
+                $periodEnd->modify('+1 day');
+                $period = new DatePeriod($periodStart, new DateInterval('P1D'), $periodEnd);
+            @endphp
 
-                            <td class="px-4 py-1 text-center border-r border-slate-50 font-mono {{ $isToday ? 'text-slate-700' : 'text-slate-500' }}">
-                                @if($isFuture)
-                                    --:--
-                                @else
-                                    {{ $record && $record->pm_out ? date('h:i A', strtotime($record->pm_out)) : '--:--' }}
-                                @endif
-                            </td>
+            <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden mb-6">
+                <div class="p-4 border-b flex items-center justify-between">
+                    <div class="font-bold">{{ $monthLabel }}</div>
+                    <div class="text-sm text-slate-500">Month Total planned: {{ number_format($targetHours,0) }} hrs</div>
+                </div>
 
-                            <td class="px-4 py-1 text-center font-mono text-blue-600 font-bold">
-                                @if($isFuture)
-                                    --:--
-                                @else
-                                    @php
-                                        $totalHours = 0.0;
-                                        if ($record) {
-                                            // AM session
-                                            if (!empty($record->am_in) && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00'])) {
-                                                $amIn = strtotime($record->am_in);
-                                                $amOut = strtotime($record->am_out);
-                                                if ($amOut > $amIn) {
-                                                    $totalHours += ($amOut - $amIn) / 3600;
-                                                }
-                                            }
+                <table class="w-full border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-white">
+                            <th class="px-2 py-1 text-left text-xs font-bold uppercase tracking-wider w-36 max-w-full whitespace-nowrap">Log Date</th>
+                            <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-x border-slate-700">AM In</th>
+                            <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">AM Out</th>
+                            <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">PM In</th>
+                            <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider border-r border-slate-700">PM Out</th>
+                            <th class="px-4 py-1 text-center text-xs font-bold uppercase tracking-wider">Total Hours</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @php $monthTotal = 0.0; @endphp
+                        @foreach($period as $dt)
+                            @php
+                                $d = $dt->format('Y-m-d');
+                                $record = auth()->user()->dailyRecords()->where('log_date', $d)->first();
+                                $isToday = ($d === $today);
+                                $isFuture = ($d > $today);
+                            @endphp
 
-                                            // PM session
-                                            if (!empty($record->pm_in) && !empty($record->pm_out) && !in_array($record->pm_out, ['00:00:00'])) {
-                                                $pmIn = strtotime($record->pm_in);
-                                                $pmOut = strtotime($record->pm_out);
-                                                if ($pmOut > $pmIn) {
-                                                    $totalHours += ($pmOut - $pmIn) / 3600;
-                                                }
-                                            }
+                            <tr class="{{ $isToday ? 'bg-blue-50/30 hover:bg-blue-50' : 'hover:bg-slate-50' }} transition-all group">
+                                <td class="px-2 py-1 {{ $isToday ? 'text-blue-700 font-mono' : 'text-slate-600 font-mono' }} whitespace-nowrap w-36">
+                                    {{ \Carbon\Carbon::parse($d)->format('M d, Y') }}
+                                    @if($isToday)
+                                        <span class="ml-2 text-[9px] bg-blue-100 px-2 py-0.5 rounded-full uppercase">Today</span>
+                                    @endif
+                                </td>
 
-                                            // Fallback to stored total_hours if calculation yields 0 but stored is > 0
-                                            if ($totalHours <= 0 && isset($record->total_hours)) {
-                                                $totalHours = max((float)$record->total_hours, 0);
+                                <td class="px-4 py-1 text-center border-x border-slate-50 font-mono {{ $isToday ? 'text-slate-700 font-bold' : 'text-slate-500' }}">
+                                    @if($isFuture)
+                                        --:--
+                                    @else
+                                        {{ $record && $record->am_in ? date('h:i A', strtotime($record->am_in)) : '--:--' }}
+                                    @endif
+                                </td>
+
+                                <td class="px-4 py-1 text-center border-r border-slate-50 font-mono text-slate-700">
+                                   @if($isFuture)
+                                       --:--
+                                   @else
+                                       {{ $record && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00']) ? date('h:i A', strtotime($record->am_out)) : '--:--' }}
+                                   @endif
+                                </td>
+
+                                <td class="px-4 py-1 text-center border-r border-slate-50 font-mono {{ $isToday ? 'text-slate-700' : 'text-slate-500' }}">
+                                    @if($isFuture)
+                                        --:--
+                                    @else
+                                        {{ $record && $record->pm_in ? date('h:i A', strtotime($record->pm_in)) : '--:--' }}
+                                    @endif
+                                </td>
+
+                                <td class="px-4 py-1 text-center border-r border-slate-50 font-mono {{ $isToday ? 'text-slate-700' : 'text-slate-500' }}">
+                                    @if($isFuture)
+                                        --:--
+                                    @else
+                                        {{ $record && $record->pm_out ? date('h:i A', strtotime($record->pm_out)) : '--:--' }}
+                                    @endif
+                                </td>
+
+                                @php
+                                    $rowHours = 0.0;
+                                    if (!$isFuture && $record) {
+                                        if (!empty($record->am_in) && !empty($record->am_out) && !in_array($record->am_out, ['00:00:00'])) {
+                                            $amIn = strtotime($record->am_in);
+                                            $amOut = strtotime($record->am_out);
+                                            if ($amOut > $amIn) {
+                                                $rowHours += ($amOut - $amIn) / 3600;
                                             }
                                         }
-                                    @endphp
+                                        if (!empty($record->pm_in) && !empty($record->pm_out) && !in_array($record->pm_out, ['00:00:00'])) {
+                                            $pmIn = strtotime($record->pm_in);
+                                            $pmOut = strtotime($record->pm_out);
+                                            if ($pmOut > $pmIn) {
+                                                $rowHours += ($pmOut - $pmIn) / 3600;
+                                            }
+                                        }
+                                        if ($rowHours <= 0 && isset($record->total_hours)) {
+                                            $rowHours = max((float)$record->total_hours, 0);
+                                        }
+                                    }
+                                    // accumulate month total only for past/today dates
+                                    if (!$isFuture) { $monthTotal += $rowHours; }
+                                @endphp
 
-                                    {{ $record ? number_format(max($totalHours, 0), 2) : '--:--' }}
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                    <tfoot>
-                        <tr class="bg-slate-50">
-                            <td class="px-4 py-1 font-semibold">Month Total</td>
-                            <td colspan="4"></td>
-                            <td id="monthTotalCell" class="px-4 py-1 text-center font-mono text-blue-600 font-bold">--:--</td>
-                        </tr>
-                    </tfoot>
-                </tbody>
-            </table>
-        </div>
+                                <td class="px-4 py-1 text-center font-mono text-blue-600 font-bold">
+                                    @if($isFuture)
+                                        --:--
+                                    @else
+                                        {{ number_format(max($rowHours, 0), 2) }}
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        <tfoot>
+                            <tr class="bg-slate-50">
+                                <td class="px-4 py-1 font-semibold">Month Total</td>
+                                <td colspan="4"></td>
+                                <td class="px-4 py-1 text-center font-mono text-blue-600 font-bold">{{ number_format($monthTotal, 2) }}</td>
+                            </tr>
+                        </tfoot>
+                    </tbody>
+                </table>
+            </div>
+        @endforeach
     </div>
 
 </body>

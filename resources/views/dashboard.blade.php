@@ -38,11 +38,13 @@
         }
         $internId = $internProfile?->id ?? null;
 
-        // find earliest rendered date from DailyTimeRecord or DtrLog
+        // Use the logged-in user's DTR settings when available (for starting_date)
+        $setting = $userId ? DtrSetting::where('user_id', $userId)->first() : null;
+
+        // find earliest date from DailyTimeRecord (any record) or DtrLog
         $earliestDaily = null;
         if ($userId) {
             $earliestDaily = DailyTimeRecord::where('user_id', $userId)
-                ->where('total_hours', '>', 0)
                 ->orderBy('log_date', 'asc')
                 ->value('log_date');
         }
@@ -64,17 +66,36 @@
             $firstDate = $earliestDtr;
         }
 
-        if (!$firstDate) {
-            // no rendered hours yet — start at current month
+        // Determine chart start month (preference order: user's starting_date, earliest record, current month)
+        if ($setting && $setting->starting_date) {
+            $start = \Carbon\Carbon::parse($setting->starting_date)->startOfMonth();
+        } elseif (!$firstDate) {
             $start = \Carbon\Carbon::now()->startOfMonth();
         } else {
             $start = \Carbon\Carbon::parse($firstDate)->startOfMonth();
         }
 
-        $end = \Carbon\Carbon::now()->startOfMonth();
+        // Estimate final month from start + estimated days based on target hours.
+        // Default hours/day assumed 8. We count calendar days by default.
+        $hoursPerDay = 8;
+        $targetForEst = $setting ? (int)$setting->total_hours : 720;
+        $totalDays = (int) ceil($targetForEst / max(1, $hoursPerDay));
+
+        // last scheduled day (start date + totalDays - 1)
+        $startDateForCalc = ($setting && $setting->starting_date) ? \Carbon\Carbon::parse($setting->starting_date) : $start->copy();
+        $lastScheduled = $startDateForCalc->copy()->addDays(max(0, $totalDays - 1));
+
+        // Add 30-day extension + 1 extra month as safety margin
+        $endWithExtension = $lastScheduled->copy()->addDays(30)->addMonth()->startOfMonth();
+
+        // end month should be at least current month (so dashboard isn't empty backwards)
+        $nowMonth = \Carbon\Carbon::now()->startOfMonth();
+        $endMonth = $endWithExtension->lt($nowMonth) ? $nowMonth : $endWithExtension;
+
+        // Build months inclusive from start to endMonth
         $months = [];
         $iter = $start->copy();
-        while ($iter->lte($end)) {
+        while ($iter->lte($endMonth)) {
             $months[$iter->format('Y-m')] = $iter->format('M');
             $iter->addMonth();
         }
@@ -128,8 +149,7 @@
         $thisMonthLabel = date('M');
         $thisMonthTotal = $totalsByMonth[$thisMonthLabel] ?? 0;
 
-        // Use the logged-in user's DTR settings when available.
-        $setting = $userId ? DtrSetting::where('user_id', $userId)->first() : null;
+        // Note: $setting already resolved above for starting_date use.
         $targetHours = $setting ? (float) $setting->total_hours : 160; // fallback
         $remaining = $targetHours - $totalRendered;
         if ($remaining < 0) { $remaining = 0; }

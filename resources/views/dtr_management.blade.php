@@ -26,11 +26,11 @@
 
             <div class="flex justify-between items-center border-b pb-4">
                 <h3 class="text-slate-800 font-bold text-xl">
-                    {{ $settings ? 'Internship Profile (Locked)' : 'Internship Configuration' }}
+                    {{ $settings ? 'Internship Profile' : 'Internship Configuration' }}
                 </h3>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Full Name</label>
                     <input type="text" name="full_name" :disabled="!isEditing"
@@ -56,6 +56,13 @@
                     <input type="text" name="position" :disabled="!isEditing"
                         value="{{ $settings->position ?? '' }}" 
                         placeholder="e.g. IT Intern"
+                        class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-black text-slate-400 uppercase mb-2">Starting Date</label>
+                    <input type="date" name="starting_date" :disabled="!isEditing"
+                        value="{{ $settings->starting_date ?? now()->format('Y-m-d') }}"
                         class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
                 </div>
             </div>

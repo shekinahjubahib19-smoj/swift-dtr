@@ -22,6 +22,14 @@
         $settings = $user->dtrSetting;
         $todayRecord = $user->dailyRecords()->where('log_date', $now->toDateString())->first();
 
+        // If the user's configured starting_date is in the future,
+        // they are "Not Yet On-Duty" and should not be able to punch.
+        $notYetOnDuty = false;
+        if ($settings && isset($settings->starting_date) && $settings->starting_date) {
+            $startDate = \Carbon\Carbon::parse($settings->starting_date)->startOfDay();
+            if ($startDate->gt($now)) { $notYetOnDuty = true; }
+        }
+
         // Status Check Logic
         $hasStarted = ($todayRecord && ($todayRecord->am_in || $todayRecord->pm_in));
         // Check if the shift is fully completed for the day
@@ -56,55 +64,54 @@
                     <div class="my-6">
                         <p class="text-slate-600">
                             Current Status: 
-                            @if(!$hasStarted)
-                                <span class="text-red-500 font-bold">Not Timed In Today</span>
-                            @elseif($isFinished)
-                                <span class="text-blue-600 font-bold">Shift Completed</span>
+                            @if($notYetOnDuty)
+                                <span class="text-amber-600 font-bold">Not Yet On-Duty</span>
                             @else
-                                <span class="text-green-500 font-bold">Active Session</span>
+                                @if(!$hasStarted)
+                                    <span class="text-red-500 font-bold">Not Timed In Today</span>
+                                @elseif($isFinished)
+                                    <span class="text-blue-600 font-bold">Shift Completed</span>
+                                @else
+                                    <span class="text-green-500 font-bold">Active Session</span>
+                                @endif
                             @endif
                         </p>
                     </div>
                 @endif
 
                 @if(!$isCompleted)
-                    @if(!$isFinished)
+                    @if($notYetOnDuty)
+                        <div class="text-amber-700 p-4 rounded-xl border border-amber-100 inline-block">
+                            <i class="fas fa-clock mr-2"></i>
+                            Not Yet On-Duty. Start date: {{ \Carbon\Carbon::parse($settings->starting_date)->format('F d, Y') }}
+                        </div>
+                    @elseif(!$isFinished)
                         <form action="{{ route('dtr.clock') }}" method="POST">
-                    @csrf
-                    @php
-                        if ($todayRecord && $todayRecord->pm_in) {
-                            $action = 'pm_out';
-                        } elseif ($todayRecord && $todayRecord->am_in && !$todayRecord->am_out && $now->hour < 12) {
-                            $action = 'am_out';
-                        } elseif ($now->hour >= 12 || ($todayRecord && $todayRecord->am_out)) {
-                            $action = 'pm_in';
-                        } else {
-                            $action = 'am_in';
-                        }
-                    @endphp
-                    <input type="hidden" name="action" value="{{ $action }}">
-                    <button type="submit" 
-                        class="px-10 py-4 rounded-full font-bold transition duration-300 shadow-lg uppercase bg-green-500 hover:bg-green-600 text-white active:scale-95">
-                        
-                        {{-- Logic updated to match Step 3 Controller rules --}}
-                        
-                        {{-- 1. Check if PM In is already recorded (User is currently in their afternoon shift) --}}
-                        @if($todayRecord && $todayRecord->pm_in)
-                            <i class="fas fa-door-open mr-2"></i> Afternoon Out
-
-                        {{-- 2. Check if Morning shift is active and it is still before 12:00 PM --}}
-                        @elseif($todayRecord && $todayRecord->am_in && !$todayRecord->am_out && $now->hour < 12)
-                            <i class="fas fa-sun mr-2"></i> Morning Out
-
-                        {{-- 3. Afternoon Gate: If it's 12:00 PM or later, OR morning shift was already closed --}}
-                        @elseif($now->hour >= 12 || ($todayRecord && $todayRecord->am_out))
-                            <i class="fas fa-moon mr-2"></i> Afternoon In
-
-                        {{-- 4. Default: Morning In (Before 12:00 PM and nothing started yet) --}}
-                        @else
-                            <i class="fas fa-sun mr-2"></i> Morning In
-                        @endif
-
+                        @csrf
+                        @php
+                            if ($todayRecord && $todayRecord->pm_in) {
+                                $action = 'pm_out';
+                            } elseif ($todayRecord && $todayRecord->am_in && !$todayRecord->am_out && $now->hour < 12) {
+                                $action = 'am_out';
+                            } elseif ($now->hour >= 12 || ($todayRecord && $todayRecord->am_out)) {
+                                $action = 'pm_in';
+                            } else {
+                                $action = 'am_in';
+                            }
+                        @endphp
+                        <input type="hidden" name="action" value="{{ $action }}">
+                        <button type="submit" 
+                            class="px-10 py-4 rounded-full font-bold transition duration-300 shadow-lg uppercase bg-green-500 hover:bg-green-600 text-white active:scale-95">
+                            @if($todayRecord && $todayRecord->pm_in)
+                                <i class="fas fa-door-open mr-2"></i> Afternoon Out
+                            @elseif($todayRecord && $todayRecord->am_in && !$todayRecord->am_out && $now->hour < 12)
+                                <i class="fas fa-sun mr-2"></i> Morning Out
+                            @elseif($now->hour >= 12 || ($todayRecord && $todayRecord->am_out))
+                                <i class="fas fa-moon mr-2"></i> Afternoon In
+                            @else
+                                <i class="fas fa-sun mr-2"></i> Morning In
+                            @endif
+                        </button>
                         </form>
                     @else
                         <div class="text-blue-700 p-4 rounded-xl border border-blue-100 inline-block">
