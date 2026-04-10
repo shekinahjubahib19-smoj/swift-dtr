@@ -122,9 +122,9 @@
 
             // cursor now points to the day after last scheduled day
             $lastWorking = $cursor->copy()->subDay();
-            // Add 30-day extension and one extra month for safety as requested
+            // Add 30-day extension (do not add an extra month — it caused an extra month to appear)
             $endDate = $lastWorking->copy();
-            $endWithExtension = $endDate->copy()->addDays(30)->addMonth();
+            $endWithExtension = $endDate->copy()->addDays(30);
 
             // Build month range from starting month to endWithExtension month
             $startMonth = isset($settings->starting_date) && $settings->starting_date ? \Carbon\Carbon::parse($settings->starting_date)->startOfMonth() : \Carbon\Carbon::now()->startOfMonth();

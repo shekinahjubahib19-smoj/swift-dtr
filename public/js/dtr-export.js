@@ -1,23 +1,30 @@
 document.addEventListener("DOMContentLoaded", function () {
     const exportBtn = document.getElementById("exportExcelBtn");
     const printBtn = document.getElementById("printBtn");
-    const table = document.querySelector("table.w-full");
+    const tables = Array.from(document.querySelectorAll("table.w-full"));
+    let isExporting = false;
+    let isPrinting = false;
 
     function getTableRowsForCSV() {
-        if (!table) return [];
-        const rows = Array.from(table.querySelectorAll("thead tr, tbody tr"));
-        return rows.map((row) => {
-            const cells = Array.from(row.querySelectorAll("th, td")).map(
-                (td) => {
-                    let text = (td.innerText || "")
-                        .replace(/\u00A0/g, " ")
-                        .trim();
-                    text = text.replace(/"/g, '""');
-                    return '"' + text + '"';
-                },
-            );
-            return cells.join(",");
+        if (!tables || !tables.length) return [];
+        const allRows = [];
+        tables.forEach((tbl, idx) => {
+            const rows = Array.from(tbl.querySelectorAll("thead tr, tbody tr"));
+            if (idx > 0) allRows.push([]); // blank row between tables
+            rows.forEach((row) => {
+                const cells = Array.from(row.querySelectorAll("th, td")).map(
+                    (td) => {
+                        let text = (td.innerText || "")
+                            .replace(/\u00A0/g, " ")
+                            .trim();
+                        text = text.replace(/"/g, '""');
+                        return '"' + text + '"';
+                    },
+                );
+                allRows.push(cells);
+            });
         });
+        return allRows.map((cells) => Array.isArray(cells) ? cells.join(",") : "");
     }
 
     function downloadCSV(filename, csvContent) {
@@ -74,8 +81,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function buildExcelHtml(headerHtml) {
-        if (!table) return headerHtml || "";
-        const clone = table.cloneNode(true);
+        if (!tables || !tables.length) return headerHtml || "";
         const doc = document.implementation.createHTMLDocument("dtr");
 
         if (headerHtml) {
@@ -86,7 +92,15 @@ document.addEventListener("DOMContentLoaded", function () {
             doc.body.appendChild(headerContainer);
         }
 
-        doc.body.appendChild(clone);
+        tables.forEach((tbl, idx) => {
+            const clone = tbl.cloneNode(true);
+            doc.body.appendChild(clone);
+            if (idx < tables.length - 1) {
+                const spacer = doc.createElement('div');
+                spacer.style.height = '12px';
+                doc.body.appendChild(spacer);
+            }
+        });
 
         const style =
             "table{border-collapse:collapse;}th,td{border:1px solid #e5e7eb;padding:4px;font-family:Calibri,Arial,Helvetica,sans-serif;font-size:11px;}thead th{background:#111827;color:#ffffff;}";
@@ -111,8 +125,13 @@ document.addEventListener("DOMContentLoaded", function () {
         URL.revokeObjectURL(url);
     }
 
-    if (exportBtn) {
-        exportBtn.addEventListener("click", function () {
+    if (exportBtn && !exportBtn.dataset.dtrExportAttached) {
+        exportBtn.dataset.dtrExportAttached = "1";
+        exportBtn.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (isExporting) return;
+            isExporting = true;
             const fullName =
                 findFieldValue("Full Name") ||
                 findFieldValue("FULL NAME") ||
@@ -153,13 +172,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const today = new Date().toISOString().slice(0, 10);
             const filename = "dtr-" + today + ".xls";
-            const html = buildExcelHtml(headerHtml);
-            downloadExcel(filename, html);
+            try {
+                const html = buildExcelHtml(headerHtml);
+                downloadExcel(filename, html);
+            } finally {
+                setTimeout(() => {
+                    isExporting = false;
+                }, 600);
+            }
         });
     }
 
-    if (printBtn) {
-        printBtn.addEventListener("click", function () {
+    if (printBtn && !printBtn.dataset.dtrPrintAttached) {
+        printBtn.dataset.dtrPrintAttached = "1";
+        printBtn.addEventListener("click", function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (isPrinting) return;
+            isPrinting = true;
             const fullName =
                 findFieldValue("Full Name") ||
                 findFieldValue("FULL NAME") ||
@@ -198,39 +228,49 @@ document.addEventListener("DOMContentLoaded", function () {
                 </table>
             `;
 
-            const bodyHtml = table
-                ? table.outerHTML
-                : "<div>No table found</div>";
-            const html = `
-                <html>
-                  <head>
-                    <title>Print DTR</title>
-                    <style>
-                      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #111827; }
-                      table { width: 100%; border-collapse: collapse; }
-                      th, td { padding: 4px; border: 1px solid #e5e7eb; text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-weight: normal; font-size: 0.875rem; }
-                      thead th { background: #111827; color: white; }
-                    </style>
-                  </head>
-                  <body>
-                    ${headerHtml}
-                    ${bodyHtml}
-                  </body>
-                </html>
-            `;
+                        let bodyHtml = "";
+                        if (!tables || !tables.length) {
+                                bodyHtml = "<div>No table found</div>";
+                        } else {
+                                bodyHtml = tables.map(t => t.outerHTML).join('<div style="height:12px"></div>');
+                        }
 
-            const w = window.open("", "_blank");
-            if (!w) {
-                alert("Unable to open print window — check popup blocker.");
-                return;
+                        const html = `
+                                <html>
+                                    <head>
+                                        <title>Print DTR</title>
+                                        <style>
+                                            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color: #111827; }
+                                            table { width: 100%; border-collapse: collapse; }
+                                            th, td { padding: 4px; border: 1px solid #e5e7eb; text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Courier New', monospace; font-weight: normal; font-size: 0.875rem; }
+                                            thead th { background: #111827; color: white; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        ${headerHtml}
+                                        ${bodyHtml}
+                                    </body>
+                                </html>
+                        `;
+
+            try {
+                const w = window.open("", "_blank");
+                if (!w) {
+                    alert("Unable to open print window — check popup blocker.");
+                    return;
+                }
+                w.document.open();
+                w.document.write(html);
+                w.document.close();
+                setTimeout(() => {
+                    w.focus();
+                    w.print();
+                }, 300);
+            } finally {
+                setTimeout(() => {
+                    isPrinting = false;
+                }, 600);
             }
-            w.document.open();
-            w.document.write(html);
-            w.document.close();
-            setTimeout(() => {
-                w.focus();
-                w.print();
-            }, 300);
         });
     }
 });

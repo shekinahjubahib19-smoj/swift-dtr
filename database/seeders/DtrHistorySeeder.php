@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use App\Models\DtrLog;
 use App\Models\DailyTimeRecord;
 use App\Models\User;
+use App\Models\DtrSetting;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -35,6 +36,23 @@ class DtrHistorySeeder extends Seeder
                 'updated_at' => now(),
             ]);
         }
+
+        // Ensure the DTR settings for the Seed Intern match the seeded history
+        DtrSetting::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'full_name' => $user->name,
+                'total_hours' => 720,
+                'department' => 'IT Department',
+                'position' => 'IT Intern',
+                // starting_date should reflect the first generated log date
+                'starting_date' => Carbon::parse('2025-12-22')->toDateString(),
+                'am_in' => '08:00:00',
+                'am_out' => '12:00:00',
+                'pm_in' => '13:00:00',
+                'pm_out' => '17:00:00',
+            ]
+        );
 
         // 3. Define the date range to hit exactly 720 hours (90 days x 8 hours)
         // From Dec 22, 2025 to April 4, 2026
