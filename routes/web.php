@@ -18,8 +18,17 @@ Route::middleware('guest')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
 });
 
-// --- Protected Routes (Must be Logged In) ---
+// Routes for authenticated users (verification allowed)
 Route::middleware('auth')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    // Verification routes (accessible while unverified)
+    Route::get('/verify', [AuthController::class, 'showVerifyForm'])->name('verify.form');
+    Route::post('/verify', [AuthController::class, 'verify'])->name('verify.submit');
+    Route::post('/verify/resend', [AuthController::class, 'resendVerification'])->name('verify.resend');
+});
+
+// --- Protected Routes (Must be Logged In AND Verified) ---
+Route::middleware(['auth', \App\Http\Middleware\EnsureVerified::class])->group(function () {
     
     // Keep the route name `dashboard` but change URL path to `/punchTime`
     // Dashboard page (app landing)
@@ -53,4 +62,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/dtr-schedule', [DtrController::class, 'schedule'])->name('dtr.schedule');
 
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    // (verification routes are available to authenticated-but-unverified users)
 });

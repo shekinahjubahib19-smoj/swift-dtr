@@ -35,7 +35,7 @@
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Full Name</label>
                     <input type="text" name="full_name" :disabled="!isEditing"
                         value="{{ $settings->full_name ?? Auth::user()->name }}" 
-                        class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all">
+                        class="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none disabled:opacity-100 disabled:text-slate-700 disabled:cursor-default transition-all uppercase">
                 </div>
                 <div>
                     <label class="block text-xs font-black text-slate-400 uppercase mb-2">Hours to Render</label>
