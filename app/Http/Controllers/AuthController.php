@@ -75,15 +75,70 @@ class AuthController extends Controller
 
         RateLimiter::clear($key);
 
-        // Mark user as verified immediately (skip verification stage)
-        $user->email_verified_at = now();
-        if ($phoneColumnExists && !empty($user->phone)) {
-            $user->phone_verified_at = now();
-        }
-        $user->save();
+        // Create a verification token and send via email or SMS
+        $method = ($request->input('method') === 'sms' && $phoneColumnExists && !empty($user->phone)) ? 'sms' : 'email';
+        $otp = random_int(100000, 999999);
+        DB::table('verification_tokens')->insert([
+            'user_id' => $user->id,
+            'token' => (string)$otp,
+            'method' => $method,
+            'expires_at' => now()->addMinutes(15),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
-        // Do not auto-login. Redirect user to the login page with a success message.
-        return redirect('/login')->with('success', 'Account created. Please login to continue.');
+        if ($method === 'email') {
+            try {
+                Mail::raw("Your verification code is: $otp", function($m) use ($user){
+                    $m->to($user->email)->subject('Your verification code');
+                });
+            } catch (\Throwable $e) {
+                Log::error('Email send failed: '.$e->getMessage());
+            }
+        } else {
+            $to = $user->phone ?? null;
+            if ($to) {
+                $p = preg_replace('/[^0-9+]/', '', $to);
+                if (strpos($p, '+') !== 0) {
+                    if (strpos($p, '0') === 0) {
+                        $p = '+63' . substr($p, 1);
+                    } elseif (strlen($p) === 10 && strpos($p, '9') === 0) {
+                        $p = '+63' . $p;
+                    } else {
+                        $p = '+' . $p;
+                    }
+                }
+
+                $twSid = env('TWILIO_SID');
+                $twToken = env('TWILIO_AUTH_TOKEN');
+                $twFrom = env('TWILIO_FROM');
+
+                if ($twSid && $twToken && $twFrom) {
+                    try {
+                        $resp = Http::asForm()->withBasicAuth($twSid, $twToken)
+                            ->post("https://api.twilio.com/2010-04-01/Accounts/{$twSid}/Messages.json", [
+                                'From' => $twFrom,
+                                'To' => $p,
+                                'Body' => "Your verification code is: {$otp}",
+                            ]);
+                        if (! $resp->successful()) {
+                            Log::error('Twilio send failed: '.$resp->status().' '.$resp->body());
+                            Log::info("OTP for {$p}: {$otp}");
+                        }
+                    } catch (\Throwable $e) {
+                        Log::error('SMS send error: '.$e->getMessage());
+                        Log::info("OTP for {$p}: {$otp}");
+                    }
+                } else {
+                    Log::info("SMS OTP for {$p}: $otp (Twilio not configured)");
+                }
+            } else {
+                Log::warning('No phone provided for SMS OTP; OTP: '.$otp);
+            }
+        }
+
+        // Do not auto-login. Redirect user to the login page with instruction to verify after login.
+        return redirect('/login')->with('success', 'Account created. A verification code was sent; please login and verify your account.');
     }
 
     public function login(Request $request)
