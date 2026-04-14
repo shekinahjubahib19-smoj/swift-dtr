@@ -144,6 +144,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 showStep(1);
                 return;
             }
+            // If verification choice hasn't been confirmed yet, open the verify modal
+            if (!registerForm.dataset.verificationConfirmed || registerForm.dataset.verificationConfirmed !== '1'){
+                e.preventDefault();
+                // open modal to choose verification method (email or sms)
+                openVerifyModal();
+                return;
+            }
         });
 
         // initialize
@@ -161,6 +168,90 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         document.getElementById('modalRegisterBasicOk')?.addEventListener('click', function(){
             document.getElementById('modalRegisterBasic')?.classList.add('hidden');
+        });
+
+        // verification modal handlers
+        const modalVerify = document.getElementById('modalRegisterVerify');
+        const verifyEmailText = document.getElementById('verifyEmailText');
+        const verifyMobileGroup = document.getElementById('verifyMobileGroup');
+        const verifyMobile = document.getElementById('verify_mobile');
+        const verifyMobileError = document.getElementById('verifyMobileError');
+
+        // If server returned validation errors previously (page reload), automatically open verify modal
+        try {
+            const formEl = document.getElementById('registerForm');
+            let srvErrs = [];
+            let oldMethod = null;
+            let oldPhone = null;
+            if (formEl) {
+                try { srvErrs = JSON.parse(formEl.dataset.serverRegisterErrors || '[]'); } catch(e){ srvErrs = []; }
+                try { oldMethod = JSON.parse(formEl.dataset.serverOldMethod || 'null'); } catch(e){ oldMethod = formEl.dataset.serverOldMethod || null; }
+                try { oldPhone = JSON.parse(formEl.dataset.serverOldPhone || 'null'); } catch(e){ oldPhone = formEl.dataset.serverOldPhone || null; }
+            }
+            const shouldOpen = (oldMethod === 'sms') || srvErrs.some(function(e){ if (!e) return false; const s = e.toLowerCase(); return s.includes('phone') || s.includes('sms'); });
+            if (shouldOpen && modalVerify) {
+                if (verifyMobile && oldPhone) verifyMobile.value = oldPhone;
+                const smsRadio = document.querySelector('input[name="verify_method"][value="sms"]');
+                if (smsRadio) smsRadio.checked = true;
+                if (verifyMobileGroup) verifyMobileGroup.classList.remove('hidden');
+                modalVerify.classList.remove('hidden');
+            }
+        } catch (err) {
+            // ignore
+        }
+
+        function openVerifyModal(){
+            if (!modalVerify) return;
+            // populate email text from form
+            const emailEl = document.getElementById('email');
+            verifyEmailText.textContent = emailEl ? emailEl.value || '—' : '—';
+            // default state: email selected
+            const checked = document.querySelector('input[name="verify_method"]:checked');
+            if (checked && checked.value === 'sms') { verifyMobileGroup.classList.remove('hidden'); }
+            else { verifyMobileGroup.classList.add('hidden'); }
+            verifyMobileError.classList.add('hidden');
+            modalVerify.classList.remove('hidden');
+        }
+
+        document.querySelectorAll('input[name="verify_method"]').forEach(function(r){
+            r.addEventListener('change', function(){
+                if (r.value === 'sms') verifyMobileGroup.classList.remove('hidden');
+                else verifyMobileGroup.classList.add('hidden');
+            });
+        });
+
+        document.getElementById('modalRegisterVerifyClose')?.addEventListener('click', function(){ if (modalVerify) modalVerify.classList.add('hidden'); });
+        document.getElementById('modalRegisterVerifyCancel')?.addEventListener('click', function(){ if (modalVerify) modalVerify.classList.add('hidden'); });
+
+        document.getElementById('modalRegisterVerifySend')?.addEventListener('click', function(){
+            if (!registerForm) return;
+            const methodEl = document.querySelector('input[name="verify_method"]:checked');
+            const method = methodEl ? methodEl.value : 'email';
+            // if sms, validate mobile
+            if (method === 'sms'){
+                const m = verifyMobile ? verifyMobile.value.trim() : '';
+                // very simple mobile validation: starts with 09 and 11 digits OR +63...
+                const ok = /^09\d{9}$/.test(m) || /^\+63\d{10}$/.test(m);
+                if (!ok){ verifyMobileError.classList.remove('hidden'); return; }
+            }
+            // remove any existing hidden inputs we added earlier
+            const oldMethod = registerForm.querySelector('input[name="method"]');
+            if (oldMethod) oldMethod.remove();
+            const oldPhone = registerForm.querySelector('input[name="phone"]');
+            if (oldPhone) oldPhone.remove();
+
+            // append hidden inputs using server-expected names: `method` and `phone`
+            const hm = document.createElement('input'); hm.type = 'hidden'; hm.name = 'method'; hm.value = method;
+            registerForm.appendChild(hm);
+            if (method === 'sms'){
+                const hp = document.createElement('input'); hp.type = 'hidden'; hp.name = 'phone'; hp.value = verifyMobile.value.trim();
+                registerForm.appendChild(hp);
+            }
+            // mark confirmed to avoid modal loop
+            registerForm.dataset.verificationConfirmed = '1';
+            modalVerify.classList.add('hidden');
+            // submit the form programmatically now that choices have been recorded
+            registerForm.submit();
         });
     })();
 });

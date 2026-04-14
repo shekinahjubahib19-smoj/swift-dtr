@@ -18,7 +18,7 @@
         </div>
         <div class="space-x-8 font-medium">
             <a href="/login" class="text-slate-600 hover:text-blue-600 transition">Login</a>
-            <a href="/register" class="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition shadow-md">Get Started</a>
+            <a href="/signup" class="bg-blue-600 text-white px-6 py-2.5 rounded-full hover:bg-blue-700 transition shadow-md">Get Started</a>
         </div>
     </nav>
 

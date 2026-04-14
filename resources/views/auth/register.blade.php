@@ -11,8 +11,23 @@
             <h2 class="text-2xl font-bold text-slate-800">Create Intern Account</h2>
         </div>
 
-        <form action="/register" method="POST" class="space-y-4" id="registerForm" data-turnstile-sitekey="{{ env('TURNSTILE_SITEKEY') }}">
+          <form action="/register" method="POST" class="space-y-4" id="registerForm"
+              data-turnstile-sitekey="{{ env('TURNSTILE_SITEKEY') }}"
+              data-server-register-errors='@json($errors->all() ?? [])'
+              data-server-old-method='@json(old('method') ?? null)'
+              data-server-old-phone='@json(old('phone') ?? null)'
+          >
             @csrf
+            @if($errors->any())
+                <div class="mb-2">
+                    <ul class="text-sm text-red-600 space-y-1">
+                        @foreach($errors->all() as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+            
             <!-- Honeypot field to catch simple bots -->
             <div style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
                 <label>Leave this field empty</label>
@@ -23,12 +38,12 @@
             <div id="step-basic" class="form-step">
                 <div class="mb-4">
                     <label class="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Full Name</label>
-                    <input type="text" name="name" id="name" placeholder="Juan Dela Cruz" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition uppercase">
+                        <input type="text" name="name" id="name" placeholder="Juan Dela Cruz" value="{{ old('name') }}" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition uppercase">
                 </div>
 
                 <div class="mb-1">
                     <label class="block text-xs font-bold uppercase text-slate-500 mb-1 ml-1">Email Address</label>
-                    <input type="email" name="email" id="email" placeholder="juan@ctu.edu.ph" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
+                    <input type="email" name="email" id="email" placeholder="juan@ctu.edu.ph" value="{{ old('email') }}" class="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition">
                 </div>
 
                 <div class="flex justify-end mt-2">
@@ -63,6 +78,7 @@
         {{-- include modal --}}
         @include('modals.register_password')
         @include('modals.register_basic')
+        @include('modals.register_verify')
 
         <script src="/js/register.js" defer></script>
 

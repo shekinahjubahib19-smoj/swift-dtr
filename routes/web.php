@@ -9,6 +9,9 @@ Route::get('/', function () {
     return view('welcome');
 })->name('landing');
 
+// Public signup route (always shows registration form even if authenticated)
+Route::get('/signup', function () { return view('auth.register'); })->name('signup');
+
 // Guest only routes (Login/Register)
 Route::middleware('guest')->group(function () {
     Route::get('/login', function () { return view('auth.login'); })->name('login');

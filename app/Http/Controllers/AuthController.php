@@ -29,8 +29,8 @@ class AuthController extends Controller
             return back()->withErrors(['email' => 'Invalid submission.']);
         }
 
-        // Optional Cloudflare Turnstile verification if configured
-        if (env('TURNSTILE_SECRET')) {
+        // Optional Cloudflare Turnstile verification if both sitekey and secret are configured
+        if (env('TURNSTILE_SECRET') && env('TURNSTILE_SITEKEY')) {
             $token = $request->input('cf-turnstile-response');
             if (! $token) {
                 RateLimiter::hit($key);
@@ -57,8 +57,8 @@ class AuthController extends Controller
         ];
         $phoneColumnExists = Schema::hasColumn('users', 'phone');
         if ($phoneColumnExists) {
-            // allow duplicate phone numbers — do not enforce uniqueness
-            $rules['phone'] = 'nullable|digits_between:7,15';
+            // accept phone if column exists; allow flexible formats (will normalize)
+            $rules['phone'] = 'nullable|string|max:20';
         }
 
         $request->validate($rules);
@@ -69,23 +69,50 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ];
         if ($phoneColumnExists && $request->filled('phone')) {
-            $userData['phone'] = $request->phone;
+            // normalize phone to digits with leading + if present
+            $p = preg_replace('/[^0-9+]/', '', $request->phone);
+            $userData['phone'] = $p;
         }
-        $user = User::create($userData);
+        // Allow duplicate phone numbers for SMS verification (do not enforce uniqueness here)
 
-        RateLimiter::clear($key);
+        try {
+            DB::beginTransaction();
 
-        // Create a verification token and send via email or SMS
-        $method = ($request->input('method') === 'sms' && $phoneColumnExists && !empty($user->phone)) ? 'sms' : 'email';
-        $otp = random_int(100000, 999999);
-        DB::table('verification_tokens')->insert([
-            'user_id' => $user->id,
-            'token' => (string)$otp,
-            'method' => $method,
-            'expires_at' => now()->addMinutes(15),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            // Try creating the user. If DB lacks `phone` column unexpectedly, retry without phone value.
+            try {
+                $user = User::create($userData);
+            } catch (\PDOException $pdoEx) {
+                // handle sqlite "no column named phone" or similar errors by removing phone and retrying
+                $msg = $pdoEx->getMessage();
+                if (stripos($msg, 'no column named phone') !== false || stripos($msg, 'has no column named phone') !== false) {
+                    Log::warning('Phone column missing during registration; retrying without phone.');
+                    unset($userData['phone']);
+                    $user = User::create($userData);
+                } else {
+                    throw $pdoEx;
+                }
+            }
+
+            // Create a verification token and send via email or SMS
+            $method = ($request->input('method') === 'sms' && $phoneColumnExists && !empty($user->phone)) ? 'sms' : 'email';
+            $otp = random_int(100000, 999999);
+            DB::table('verification_tokens')->insert([
+                'user_id' => $user->id,
+                'token' => (string)$otp,
+                'method' => $method,
+                'expires_at' => now()->addMinutes(15),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
+            RateLimiter::clear($key);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Registration failed: '.$e->getMessage());
+            RateLimiter::hit($key);
+            return back()->withErrors(['email' => 'Registration failed. Please try again.']);
+        }
 
         if ($method === 'email') {
             try {
